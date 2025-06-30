@@ -4,6 +4,16 @@
 
 This system helps **fishermen**, **administrators**, and **collection ships** to collaboratively manage and retrieve lost fishing gear using **real-time reporting**, **drift simulation**, and **sediment prediction**.
 
+## Core Code
+<pre>
+/user: 로그인 페이지와 회원가입 페이지
+/lists: 구매자 DB와 신고자 DB
+/maps: 유실어구 시뮬레이션 실행 페이지 및 어구 리스트 
+/maps/legend: 유실어구 시뮬레이션 모델로 maps app과 연결
+/rds: 임베디드 시스템에서 얻어진 GPS 데이터베이스
+/schedule: 수거선 배정 페이지
+/sediment: 침적 시뮬레이션 실행 페이지 및 어구 리스트 
+</pre>
 ---
 
 ## 1. 🎣 Fishermen report lost fishing gear with one click
