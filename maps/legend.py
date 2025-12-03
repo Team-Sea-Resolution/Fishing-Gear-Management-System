@@ -24,6 +24,8 @@ import requests
 from scipy.interpolate import griddata
 from geopy.distance import geodesic
 from maps.models import SystemData
+from urllib.parse import urlencode
+
 
 
 try:
@@ -134,7 +136,7 @@ def get_sorted_stations(station_df, lat, lon):
 # ─────────────────────────────────────────────
 # 3. KHOA 해류 API 호출 및 NetCDF 저장
 # ─────────────────────────────────────────────
-def fetch_khoa_uv(time_list, lon_min, lon_max, lat_min, lat_max, lon_grid, lat_grid, service_key):
+def fetch_khoa_tidal_uv(time_list, lon_min, lon_max, lat_min, lat_max, lon_grid, lat_grid, service_key):
     all_data = []
     base_url = "http://www.khoa.go.kr/api/oceangrid/tidalCurrentAreaGeoJson/search.do"
     for t in time_list:
@@ -415,7 +417,7 @@ def fetch_all_khoa(time_list, lon_min, lon_max, lat_min, lat_max,
                    lon_grid, lat_grid, service_key):
 
     # 1. 해류 데이터 (기존 방식 유지)
-    ds = fetch_khoa_uv(time_list, lon_min, lon_max, lat_min, lat_max,
+    ds = fetch_khoa_tidal_uv(time_list, lon_min, lon_max, lat_min, lat_max,
                        lon_grid, lat_grid, service_key)
 
     # 2. 기준 시간 및 공간 정보
@@ -467,6 +469,164 @@ def fetch_all_khoa(time_list, lon_min, lon_max, lat_min, lat_max,
     return ds
 
 
+
+# fetch_hycom_uv 함수는 HYCOM 서버에서 해양 데이터를 다운로드하고 결합합니다.
+def fetch_hycom_uv(time_list, lon_min, lon_max, lat_min, lat_max):
+    """
+    3시간 간격의 HYCOM uv3z 데이터와 1시간 간격의 sur 데이터를 결합하여
+    1시간 간격의 보간된 uv 데이터를 생성합니다.
+    
+    Args:
+        time_list (list): datetime 객체 리스트.
+        lon_min, lon_max (float): 경도 범위.
+        lat_min, lat_max (float): 위도 범위.
+        
+    Returns:
+        xarray.Dataset: 1시간 간격의 보간된 데이터를 포함하는 xarray Dataset 객체.
+        
+    Raises:
+        Exception: 데이터 다운로드에 실패하거나 xarray Dataset을 열지 못할 경우.
+    """
+    
+    # 1년 전으로 시간 조정 (사용자의 요청에 따라 추가)
+    time_list = [t - timedelta(days=365*2) for t in time_list]
+
+    try:
+        data_year = time_list[0].year
+    except (IndexError, AttributeError):
+        print("time_list가 비어 있거나 올바른 형식이 아닙니다. 현재 연도를 사용합니다.")
+        data_year = datetime.now().year
+    
+    # HYCOM 데이터가 제공되는 연도 범위를 확인합니다.
+    # GLBy0.08/expt_93.0 아카이브는 2018년 12월 4일 ~ 2024년 9월 4일 데이터만 제공합니다.
+    supported_start_year = 2018
+    supported_end_year = 2024
+    if not (supported_start_year <= data_year <= supported_end_year):
+        print(f"오류: {data_year}년 데이터는 HYCOM 서버에서 지원하지 않습니다.")
+        print(f"지원되는 연도 범위: {supported_start_year}년 ~ {supported_end_year}년")
+        # return xr.Dataset()
+
+    # 시간 목록을 datetime64로 변환하고 고유한 값으로 정렬
+    ds_time = pd.to_datetime(time_list).to_numpy(dtype='datetime64[ns]')
+
+    # 요청에 따라 시작 시간은 내림, 끝 시간은 올림 처리
+    time_start_dt = pd.to_datetime(ds_time.min()).replace(minute=0, second=0, microsecond=0)
+    time_end_dt = pd.to_datetime(ds_time.max()).replace(minute=0, second=0, microsecond=0)
+    if time_end_dt < pd.to_datetime(ds_time.max()):
+        time_end_dt += timedelta(hours=1)
+
+    time_start_str = time_start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    time_end_str = time_end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    # 다운로드 폴더 지정
+    output_dir = "hycom_nc_files"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 1. uv3z (3시간 간격) 데이터 다운로드
+    uv3z_base_url = f"https://ncss.hycom.org/thredds/ncss/grid/GLBy0.08/expt_93.0/uv3z/{data_year}"
+    uv3z_filename = "uv3z.nc"
+    uv3z_filepath = os.path.join(output_dir, uv3z_filename)
+    
+    uv3z_params = {
+        "var": ["water_u", "water_v"],
+        "north": lat_max, "south": lat_min, "west": lon_min, "east": lon_max,
+        "time_start": time_start_str, "time_end": time_end_str,
+        "timeStride": 1, "vertStride": 0, "accept": "netcdf4"
+    }
+
+    # URL 생성 (요청된 변경사항)
+    uv3z_request_url = f"{uv3z_base_url}?{urlencode(uv3z_params, doseq=True)}"
+
+    try:
+        print(f"uv3z 데이터 다운로드 중...: {uv3z_request_url}")
+        response_uv3z = requests.get(uv3z_request_url, stream=True)
+        response_uv3z.raise_for_status()
+        with open(uv3z_filepath, "wb") as f:
+            for chunk in response_uv3z.iter_content(chunk_size=8192):
+                f.write(chunk)
+        # with 문으로 xarray 데이터셋을 열어 파일 핸들을 자동으로 관리
+        with xr.open_dataset(uv3z_filepath, decode_times=True) as ds_uv3z:
+            
+            # 2. sur (1시간 간격) 데이터 다운로드
+            sur_base_url = f"https://ncss.hycom.org/thredds/ncss/GLBy0.08/expt_93.0/sur/{data_year}"
+            sur_filename = "sur.nc"
+            sur_filepath = os.path.join(output_dir, sur_filename)
+            
+            sur_params = {
+                "var": ["u_barotropic_velocity", "v_barotropic_velocity"],
+                "north": lat_max, "south": lat_min, "west": lon_min, "east": lon_max,
+                "time_start": time_start_str, "time_end": time_end_str,
+                "timeStride": 1, "accept": "netcdf4"
+            }
+            
+            # URL 생성
+            sur_request_url = f"{sur_base_url}?{urlencode(sur_params, doseq=True)}"
+
+            try:
+                print(f"sur 데이터 다운로드 중...: {sur_request_url}")
+                response_sur = requests.get(sur_request_url, stream=True)
+                response_sur.raise_for_status()
+                with open(sur_filepath, "wb") as f:
+                    for chunk in response_sur.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                with xr.open_dataset(sur_filepath, decode_times=True) as ds_sur:
+
+                    print("두 HYCOM 데이터셋을 결합하여 1시간 간격 데이터 생성 중...")
+
+                    try:
+                        # 3. uv3z 데이터를 sur 데이터의 시간 레벨에 맞춰 보간
+                        # 깊이 0.0m의 표층 유속 데이터를 선택합니다.
+                        ds_uv3z_surface = ds_uv3z.sel(depth=0.0, method='nearest').reset_coords('depth', drop=True)
+                        
+                        # 4. 동일 시간대에서 uv3z와 sur 데이터의 차이 계산
+                        # uv3z와 sur의 시간이 일치하는 지점만 선택합니다.
+                        common_times = ds_sur.time.sel(time=ds_uv3z_surface.time.values, method='nearest')
+                        
+                        # 표층 유속과 수송 유속의 차이를 계산 (u와 v 각각)
+                        diff_u = ds_uv3z_surface['water_u'].sel(time=common_times) - ds_sur['u_barotropic_velocity'].sel(time=common_times)
+                        diff_v = ds_uv3z_surface['water_v'].sel(time=common_times) - ds_sur['v_barotropic_velocity'].sel(time=common_times)
+
+                        # 5. 차이 데이터(diff)를 1시간 간격으로 보간
+                        # sur 데이터의 1시간 간격에 맞춰 차이 데이터를 선형 보간합니다.
+                        diff_u_interp = diff_u.interp(time=ds_sur.time, method='linear')
+                        diff_v_interp = diff_v.interp(time=ds_sur.time, method='linear')
+                        
+                        # 6. 보간된 차이를 sur 데이터에 더하여 최종 1시간 간격 표층 유속 추정
+                        estimated_u = ds_sur['u_barotropic_velocity'] + diff_u_interp
+                        estimated_v = ds_sur['v_barotropic_velocity'] + diff_v_interp
+
+                        # 7. 최종 데이터셋 생성
+                        ds_final = xr.Dataset(
+                            {
+                                "x_sea_water_velocity": (('time', 'lat', 'lon'), estimated_u.values),
+                                "y_sea_water_velocity": (('time', 'lat', 'lon'), estimated_v.values)
+                            },
+                            coords={
+                                "time": ds_sur.time.values,
+                                "lat": ds_sur.lat.values,
+                                "lon": ds_sur.lon.values
+                            }
+                        )
+                        
+                        return ds_final
+
+                    except Exception as e:
+                        print(f"데이터셋 결합 및 보간 실패: {e}")
+                        return xr.Dataset()
+
+            except requests.exceptions.RequestException as e:
+                print(f"sur 데이터 다운로드 실패: {e}")
+                return xr.Dataset()
+        
+    except requests.exceptions.RequestException as e:
+        print(f"uv3z 데이터 다운로드 실패: {e}")
+        return xr.Dataset()
+    finally:
+        # 임시 파일 정리
+        if os.path.exists(uv3z_filepath):
+            os.remove(uv3z_filepath)
+        if os.path.exists(sur_filepath):
+            os.remove(sur_filepath)
 
 
 # ─────────────────────────────────────────────────────
@@ -562,20 +722,57 @@ def run_lost_simulation(
         sim_end   = retrieve_date
 
     time_list = pd.date_range(sim_start, sim_end, freq='h')
-    print("KHOA UV 데이터 가져오는 중...")
-    fetch_uv = fetch_all_khoa(time_list, lon_min, lon_max, lat_min, lat_max, lon_grid, lat_grid, service_key_khoa)
+    print("KHOA 수치조류도 데이터 가져오는 중...")
+    fetch_tidal_uv = fetch_all_khoa(time_list, lon_min, lon_max, lat_min, lat_max, lon_grid, lat_grid, service_key_khoa)
+    print("HYCOM 해류 데이터 가져오는 중...")
+    fetch_uv = fetch_hycom_uv(time_list, lon_min, lon_max, lat_min, lat_max)
     print("ERA5 바람 데이터 가져오는 중...")
     fetch_wind = fetch_era5(sim_start, sim_end, lat_min, lat_max, lon_min, lon_max)
 
-    o = OceanDrift(loglevel=20)
+    class ConnectedNetDrift(OceanDrift):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.ideal_distance_m = 270  # 자망 이상 거리 (m)
+            self.k = 0.05  # 조정 강도 계수 (0~1 사이, 높일수록 자망 형태 강함)
+            self.step = 2  # 몇 개 간격으로 연결할지 (3개 간격 연결)
+            self.adjustment_loops = 2  # update 내 반복 조정 횟수
+
+        def update(self):
+            super().update()
+            lon = self.elements.lon.copy()
+            lat = self.elements.lat.copy()
+            n = len(lon)
+
+            for _ in range(self.adjustment_loops):
+                for i in range(self.step, n):
+                    prev_coord = (lat[i - self.step], lon[i - self.step])
+                    curr_coord = (lat[i], lon[i])
+                    dist = geodesic(prev_coord, curr_coord).meters
+                    delta = dist - self.ideal_distance_m
+
+                    if abs(delta) > 0.1:
+                        dlat = lat[i] - lat[i - self.step]
+                        dlon = lon[i] - lon[i - self.step]
+                        scale = delta / dist * self.k
+
+                        lat[i]              -= dlat * scale
+                        lon[i]              -= dlon * scale
+                        lat[i - self.step]  += dlat * scale
+                        lon[i - self.step]  += dlon * scale
+
+            self.elements.lon[:] = lon
+            self.elements.lat[:] = lat
+
+    o = ConnectedNetDrift(OceanDrift)
     # o = GradualKillDrift(kill_order=kill_order, kill_steps=kill_steps, yangmang_order=yangmang_order, loglevel=20)
-    o.add_reader([reader_netCDF_CF_generic.Reader(fetch_uv),
+    o.add_reader([reader_netCDF_CF_generic.Reader(fetch_tidal_uv),
+                    reader_netCDF_CF_generic.Reader(fetch_uv),
                     reader_netCDF_CF_generic.Reader(fetch_wind)])
     o.set_config('seed:wind_drift_factor', 0.02)
     o.set_config('drift:stokes_drift', True)
     o.set_config('general:seafloor_action', 'none')
-    o.set_config('drift:vertical_advection', True)
-    o.set_config('drift:vertical_mixing', False)
+    o.set_config('drift:vertical_advection', False)
+    o.set_config('drift:vertical_mixing', True)
     o.set_config('general:coastline_action', 'previous')
     for i, row in df_tumang.iterrows():
         o.seed_elements(
@@ -586,7 +783,6 @@ def run_lost_simulation(
          ID=np.array([i], dtype=np.int32),
          origin_marker=np.array([i], dtype=np.int32)
         )
-    o.elements.terminal_velocity[:] = 0.01
 
     o.run(time_step=time_step, duration=sim_end - sim_start)
 
