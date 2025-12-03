@@ -1,8 +1,8 @@
-## **URL**: http://3.34.99.153:8000/
-
 # 🐟 Smart Lost Fishing Gear Reporting and Retrieval System
 
-This system helps **fishermen**, **administrators**, and **collection ships** to collaboratively manage and retrieve lost fishing gear using **real-time reporting**, **drift simulation**, and **sediment prediction**.
+Fishing Gear Management System is an integrated management platform designed to digitally track the deployment, movement, and retrieval status of fishing gear, aiming to reduce illegal, abandoned, and lost gear.​<br>
+Based on vessel, fishing ground, and location data, it traces gear usage history and the generation of discarded gear, providing data to support marine debris reduction and resource management policy-making.<br>
+It also supports the shredding and recycling linkage of collected waste nets, contributing to marine environmental protection and the realization of a circular economy.
 
 ## Core Code
 <pre>
