@@ -20,7 +20,7 @@ It also supports the shredding and recycling linkage of collected waste nets, co
 
 Fishermen press a button on-site when they lose fishing gear during operations.
 
-<img src="https://github.com/user-attachments/assets/9989220d-ab43-4a5d-a8ec-65f3b50b633d" width="500" />
+<img src="https://github.com/user-attachments/assets/965191db-2b0e-49f2-bf26-96b4e9abdd69" width="500" />
 
 ---
 
@@ -28,7 +28,7 @@ Fishermen press a button on-site when they lose fishing gear during operations.
 
 A web dashboard displays the gear's loss location in real-time.
 
-<img src="https://github.com/user-attachments/assets/d2962eb3-fa52-455e-ac77-638b615a9a09" width="500" />
+<img src="https://github.com/user-attachments/assets/8577c22d-bd68-4198-937a-3d2465da6693" width="500" />
 
 ---
 
@@ -36,7 +36,7 @@ A web dashboard displays the gear's loss location in real-time.
 
 Administrators can run a **drift simulation** from the reported location to estimate the future position of the gear.
 
-<img src="https://github.com/user-attachments/assets/21d4b089-f35b-452b-b806-481d9f14ffff" width="500" />
+<img src="https://github.com/user-attachments/assets/9b9f8f9d-bb42-43d0-a64f-1a41cafd39f2" width="500" />
 
 ---
 
@@ -44,7 +44,7 @@ Administrators can run a **drift simulation** from the reported location to esti
 
 The predicted end location is visualized to assist in planning retrieval operations.
 
-<img src="https://github.com/user-attachments/assets/9a4c9f18-b0f0-4fba-90b1-14aab44392bc" width="500" />
+<img src="https://github.com/user-attachments/assets/bb3e1e80-0f49-4142-8c1d-590ef65d3fdf" width="500" />
 
 ---
 
@@ -52,7 +52,7 @@ The predicted end location is visualized to assist in planning retrieval operati
 
 Administrators assign the most suitable collection ship based on location and availability.
 
-<img src="https://github.com/user-attachments/assets/26dac0cd-8360-4ed6-b212-f945176dd624" width="500" />
+<img src="https://github.com/user-attachments/assets/2544f8ea-2edb-4520-9fad-6cc6609d35bf" width="500" />
 
 ---
 
@@ -60,7 +60,7 @@ Administrators assign the most suitable collection ship based on location and av
 
 If gear remains unretrieved, sedimentation simulations help estimate **long-term accumulation areas**.
 
-<img src="https://github.com/user-attachments/assets/34eb584a-47e2-420c-9222-2a40bcd9f28b" width="500" />
+<img src="https://github.com/user-attachments/assets/2022011b-baca-4fc6-9a83-f6eb015f68fa" width="500" />
 
 ---
 
