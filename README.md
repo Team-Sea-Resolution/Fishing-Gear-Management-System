@@ -12,7 +12,8 @@ It also supports the shredding and recycling linkage of collected waste nets, co
 /maps/legend: 유실어구 시뮬레이션 모델로 maps app과 연결
 /rds: 임베디드 시스템에서 얻어진 GPS 데이터베이스
 /schedule: 수거선 배정 페이지
-/sediment: 침적 시뮬레이션 실행 페이지 및 어구 리스트 
+/sediment: 침적 시뮬레이션 실행 페이지 및 어구 리스트/ 침적 시뮬레이션을 통한 쓰레기 밀집구역 인사이트 코드
+/optimal interpolation: 자료동화기법 최적 내삽법(OI)를 통한 유실 시뮬레이션에 사용하는 해수유동데이터 제작
 </pre>
 ---
 
